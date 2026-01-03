@@ -22,6 +22,7 @@ interface Player {
   trait: string;
   baggage: string;
   fact: string;
+  specialAbility: string;
   voted?: boolean;
   revealed: {
     profession: boolean;
@@ -32,6 +33,7 @@ interface Player {
     trait: boolean;
     baggage: boolean;
     fact: boolean;
+    specialAbility: boolean;
   };
 }
 
@@ -158,6 +160,20 @@ const Index = () => {
     const traits = ['Лидер', 'Эгоист', 'Альтруист', 'Трус', 'Храбрец', 'Умный'];
     const baggages = ['Рюкзак с едой', 'Аптечка', 'Оружие', 'Инструменты', 'Книги', 'Семена'];
     const facts = ['Был в армии', 'Знает 3 языка', 'Выжил в катастрофе', 'Имеет детей', 'Умеет выживать'];
+    const specialAbilities = [
+      'Фотографическая память',
+      'Олимпийский чемпион',
+      'Гений механики',
+      'Мастер выживания',
+      'Виртуоз переговоров',
+      'Уникальный иммунитет',
+      'Идеальный слух',
+      'Способность к языкам',
+      'Скоростное мышление',
+      'Высокая выносливость',
+      'Хирургическая точность',
+      'Психологическая устойчивость'
+    ];
 
     return {
       id: Math.random().toString(36).substr(2, 9),
@@ -170,6 +186,7 @@ const Index = () => {
       trait: traits[Math.floor(Math.random() * traits.length)],
       baggage: baggages[Math.floor(Math.random() * baggages.length)],
       fact: facts[Math.floor(Math.random() * facts.length)],
+      specialAbility: specialAbilities[Math.floor(Math.random() * specialAbilities.length)],
       voted: false,
       revealed: {
         profession: false,
@@ -179,7 +196,8 @@ const Index = () => {
         phobia: false,
         trait: false,
         baggage: false,
-        fact: false
+        fact: false,
+        specialAbility: false
       }
     };
   };
@@ -571,6 +589,13 @@ const Index = () => {
                                         onChange={(e) => setEditingPlayer({ ...editingPlayer, fact: e.target.value })}
                                       />
                                     </div>
+                                    <div>
+                                      <Label>Спец. способность</Label>
+                                      <Input
+                                        value={editingPlayer.specialAbility}
+                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, specialAbility: e.target.value })}
+                                      />
+                                    </div>
                                     <Button onClick={() => updatePlayer(editingPlayer)} className="gap-2">
                                       <Icon name="Save" size={18} />
                                       Сохранить
@@ -756,6 +781,28 @@ const Index = () => {
                                 className="h-6 px-2"
                               >
                                 <Icon name={player.revealed.fact ? 'EyeOff' : 'Eye'} size={14} />
+                              </Button>
+                            )}
+                          </div>
+
+                          <div className="flex items-start justify-between gap-2 pt-2 border-t border-primary/30">
+                            <div className="flex items-start gap-2 flex-1">
+                              <Icon name="Zap" size={14} className="text-accent mt-0.5" />
+                              <span className="text-muted-foreground font-semibold">Спец. способность:</span>
+                              {player.revealed.specialAbility ? (
+                                <span className="font-bold text-accent flex-1">{player.specialAbility}</span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Скрыто</span>
+                              )}
+                            </div>
+                            {player.id === currentPlayerId && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReveal(player.id, 'specialAbility')}
+                                className="h-6 px-2"
+                              >
+                                <Icon name={player.revealed.specialAbility ? 'EyeOff' : 'Eye'} size={14} />
                               </Button>
                             )}
                           </div>
