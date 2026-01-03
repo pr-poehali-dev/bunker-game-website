@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +50,33 @@ const Index = () => {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [timeLeft, setTimeLeft] = useState(180);
   const [isTimerActive, setIsTimerActive] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const tickSoundRef = useRef<HTMLAudioElement | null>(null);
+  const alarmSoundRef = useRef<HTMLAudioElement | null>(null);
+  const voteSoundRef = useRef<HTMLAudioElement | null>(null);
+  const successSoundRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    tickSoundRef.current = new Audio('/sounds/timer-tick.mp3');
+    alarmSoundRef.current = new Audio('/sounds/alarm.mp3');
+    voteSoundRef.current = new Audio('/sounds/vote.mp3');
+    successSoundRef.current = new Audio('/sounds/success.mp3');
+
+    return () => {
+      tickSoundRef.current = null;
+      alarmSoundRef.current = null;
+      voteSoundRef.current = null;
+      successSoundRef.current = null;
+    };
+  }, []);
+
+  const playSound = (soundRef: React.MutableRefObject<HTMLAudioElement | null>) => {
+    if (soundEnabled && soundRef.current) {
+      soundRef.current.currentTime = 0;
+      soundRef.current.play().catch(() => {});
+    }
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -58,15 +85,19 @@ const Index = () => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             setIsTimerActive(false);
+            playSound(alarmSoundRef);
             toast.warning('Время вышло! Переходим к голосованию');
             return 0;
+          }
+          if (prev <= 10) {
+            playSound(tickSoundRef);
           }
           return prev - 1;
         });
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isTimerActive, timeLeft]);
+  }, [isTimerActive, timeLeft, soundEnabled]);
 
   const generateRandomPlayer = (name: string): Player => {
     const professions = ['Врач', 'Инженер', 'Учитель', 'Программист', 'Механик', 'Биолог', 'Военный', 'Повар'];
@@ -128,6 +159,7 @@ const Index = () => {
       players: [...session.players, newPlayer]
     };
     
+    playSound(successSoundRef);
     setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
     setCurrentSession(updatedSession);
     setActiveTab('game');
@@ -137,6 +169,7 @@ const Index = () => {
   const startRound = () => {
     setTimeLeft(180);
     setIsTimerActive(true);
+    playSound(successSoundRef);
     if (currentSession) {
       const updatedSession = { ...currentSession, status: 'playing' as const };
       setCurrentSession(updatedSession);
@@ -147,6 +180,7 @@ const Index = () => {
 
   const startVoting = () => {
     setIsTimerActive(false);
+    playSound(voteSoundRef);
     if (currentSession) {
       const updatedSession = { ...currentSession, status: 'voting' as const };
       setCurrentSession(updatedSession);
@@ -158,6 +192,7 @@ const Index = () => {
   const votePlayer = (playerId: string) => {
     if (!currentSession) return;
     
+    playSound(voteSoundRef);
     const updatedPlayers = currentSession.players.map(p => 
       p.id === playerId ? { ...p, voted: !p.voted } : p
     );
@@ -195,7 +230,18 @@ const Index = () => {
             <Icon name="ShieldAlert" size={48} className="text-primary" />
             <h1 className="text-5xl md:text-6xl font-bold text-primary glow">БУНКЕР</h1>
           </div>
-          <p className="text-muted-foreground text-lg">Выживет сильнейший</p>
+          <div className="flex items-center justify-center gap-3">
+            <p className="text-muted-foreground text-lg">Выживет сильнейший</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="gap-2"
+            >
+              <Icon name={soundEnabled ? 'Volume2' : 'VolumeX'} size={20} />
+              {soundEnabled ? 'Звук вкл' : 'Звук выкл'}
+            </Button>
+          </div>
         </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
