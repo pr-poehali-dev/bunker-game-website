@@ -23,6 +23,16 @@ interface Player {
   baggage: string;
   fact: string;
   voted?: boolean;
+  revealed: {
+    profession: boolean;
+    age: boolean;
+    health: boolean;
+    hobby: boolean;
+    phobia: boolean;
+    trait: boolean;
+    baggage: boolean;
+    fact: boolean;
+  };
 }
 
 interface GameSession {
@@ -31,6 +41,12 @@ interface GameSession {
   players: Player[];
   maxPlayers: number;
   status: 'waiting' | 'playing' | 'voting';
+  adminId: string;
+  scenario: {
+    type: string;
+    description: string;
+    bunkerInfo: string;
+  };
 }
 
 const Index = () => {
@@ -41,7 +57,13 @@ const Index = () => {
       name: 'Бункер №47',
       players: [],
       maxPlayers: 8,
-      status: 'waiting'
+      status: 'waiting',
+      adminId: '',
+      scenario: {
+        type: '',
+        description: '',
+        bunkerInfo: ''
+      }
     }
   ]);
   const [currentSession, setCurrentSession] = useState<GameSession | null>(null);
@@ -51,6 +73,7 @@ const Index = () => {
   const [timeLeft, setTimeLeft] = useState(180);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
 
   const tickSoundRef = useRef<HTMLAudioElement | null>(null);
   const alarmSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -99,6 +122,34 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [isTimerActive, timeLeft, soundEnabled]);
 
+  const scenarios = [
+    {
+      type: 'Ядерная война',
+      description: 'Началась глобальная ядерная война. Мир в руинах, радиация повсюду.',
+      bunkerInfo: 'Бункер рассчитан на 4 человека. Запасов хватит на 5 лет.'
+    },
+    {
+      type: 'Эпидемия',
+      description: 'Смертельный вирус охватил планету. 95% населения мертвы.',
+      bunkerInfo: 'Бункер с системой очистки воздуха. Вместимость 4 человека, запасы на 3 года.'
+    },
+    {
+      type: 'Астероид',
+      description: 'Гигантский астероид столкнулся с Землей. Планета в огне.',
+      bunkerInfo: 'Глубокий подземный бункер на 4 человека. Автономность 6 лет.'
+    },
+    {
+      type: 'Зомби-апокалипсис',
+      description: 'Мертвые восстали. Цивилизация пала за 72 часа.',
+      bunkerInfo: 'Укреплённый бункер, вместимость 4 человека, провизии на 4 года.'
+    },
+    {
+      type: 'Инопланетное вторжение',
+      description: 'Враждебные пришельцы уничтожают человечество. Сопротивление бесполезно.',
+      bunkerInfo: 'Подземное убежище с маскировкой. Места для 4 человек, запасы на 5 лет.'
+    }
+  ];
+
   const generateRandomPlayer = (name: string): Player => {
     const professions = ['Врач', 'Инженер', 'Учитель', 'Программист', 'Механик', 'Биолог', 'Военный', 'Повар'];
     const healthStates = ['Здоров', 'Легкая травма', 'Хроническая болезнь', 'Аллергия'];
@@ -119,7 +170,17 @@ const Index = () => {
       trait: traits[Math.floor(Math.random() * traits.length)],
       baggage: baggages[Math.floor(Math.random() * baggages.length)],
       fact: facts[Math.floor(Math.random() * facts.length)],
-      voted: false
+      voted: false,
+      revealed: {
+        profession: false,
+        age: false,
+        health: false,
+        hobby: false,
+        phobia: false,
+        trait: false,
+        baggage: false,
+        fact: false
+      }
     };
   };
 
@@ -128,12 +189,15 @@ const Index = () => {
       toast.error('Введите название сессии');
       return;
     }
+    const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
     const newSession: GameSession = {
       id: Math.random().toString(36).substr(2, 9),
       name: newSessionName,
       players: [],
       maxPlayers: 8,
-      status: 'waiting'
+      status: 'waiting',
+      adminId: '',
+      scenario: randomScenario
     };
     setSessions([...sessions, newSession]);
     setNewSessionName('');
@@ -154,16 +218,19 @@ const Index = () => {
     }
 
     const newPlayer = generateRandomPlayer(playerName);
+    const isFirstPlayer = session.players.length === 0;
     const updatedSession = {
       ...session,
-      players: [...session.players, newPlayer]
+      players: [...session.players, newPlayer],
+      adminId: isFirstPlayer ? newPlayer.id : session.adminId
     };
     
     playSound(successSoundRef);
+    setCurrentPlayerId(newPlayer.id);
     setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
     setCurrentSession(updatedSession);
     setActiveTab('game');
-    toast.success(`${playerName} присоединился к игре!`);
+    toast.success(`${playerName} присоединился к игре!${isFirstPlayer ? ' Вы администратор!' : ''}`);
   };
 
   const startRound = () => {
@@ -214,6 +281,28 @@ const Index = () => {
     setSessions(sessions.map(s => s.id === currentSession.id ? updatedSession : s));
     setEditingPlayer(null);
     toast.success('Карточка обновлена');
+  };
+
+  const toggleReveal = (playerId: string, field: keyof Player['revealed']) => {
+    if (!currentSession) return;
+    
+    const updatedPlayers = currentSession.players.map(p => {
+      if (p.id === playerId) {
+        return {
+          ...p,
+          revealed: {
+            ...p.revealed,
+            [field]: !p.revealed[field]
+          }
+        };
+      }
+      return p;
+    });
+    
+    const updatedSession = { ...currentSession, players: updatedPlayers };
+    setCurrentSession(updatedSession);
+    setSessions(sessions.map(s => s.id === currentSession.id ? updatedSession : s));
+    playSound(successSoundRef);
   };
 
   const formatTime = (seconds: number) => {
@@ -323,6 +412,29 @@ const Index = () => {
           <TabsContent value="game" className="space-y-6 animate-fade-in">
             {currentSession && (
               <>
+                <Card className="glow border-destructive">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Icon name="Radiation" size={24} className="text-destructive" />
+                      Сценарий катастрофы
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <Badge variant="destructive" className="text-lg px-3 py-1">
+                        {currentSession.scenario.type}
+                      </Badge>
+                    </div>
+                    <p className="text-muted-foreground">{currentSession.scenario.description}</p>
+                    <div className="bg-muted/30 p-3 rounded-lg border border-primary/30">
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <Icon name="Home" size={16} className="text-primary" />
+                        {currentSession.scenario.bunkerInfo}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card className="glow-red">
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
@@ -338,23 +450,28 @@ const Index = () => {
                   <CardContent className="space-y-4">
                     <Progress value={(timeLeft / 180) * 100} className="h-3" />
                     <div className="flex gap-3">
-                      {!isTimerActive && currentSession.status === 'waiting' && (
+                      {!isTimerActive && currentSession.status === 'waiting' && currentSession.adminId === currentPlayerId && (
                         <Button onClick={startRound} className="gap-2 flex-1">
                           <Icon name="Play" size={18} />
                           Начать раунд
                         </Button>
                       )}
-                      {isTimerActive && (
+                      {isTimerActive && currentSession.adminId === currentPlayerId && (
                         <Button onClick={() => setIsTimerActive(false)} variant="destructive" className="gap-2 flex-1">
                           <Icon name="Pause" size={18} />
                           Пауза
                         </Button>
                       )}
-                      {currentSession.status === 'playing' && (
+                      {currentSession.status === 'playing' && currentSession.adminId === currentPlayerId && (
                         <Button onClick={startVoting} variant="secondary" className="gap-2 flex-1">
                           <Icon name="Vote" size={18} />
                           Голосование
                         </Button>
+                      )}
+                      {currentSession.adminId !== currentPlayerId && (
+                        <p className="text-sm text-muted-foreground text-center flex-1">
+                          Ожидание действий администратора...
+                        </p>
                       )}
                     </div>
                   </CardContent>
@@ -365,139 +482,282 @@ const Index = () => {
                     <Card key={player.id} className={`hover-scale ${player.voted ? 'border-destructive' : ''} glow`}>
                       <CardHeader>
                         <CardTitle className="flex items-center justify-between">
-                          <span className="flex items-center gap-2">
+                          <div className="flex items-center gap-2">
                             <Icon name="User" size={20} />
                             {player.name}
-                          </span>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button size="sm" variant="ghost" onClick={() => setEditingPlayer(player)}>
-                                <Icon name="Edit" size={16} />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                              <DialogHeader>
-                                <DialogTitle>Редактировать карточку</DialogTitle>
-                              </DialogHeader>
-                              {editingPlayer && (
-                                <div className="grid gap-4">
-                                  <div className="grid grid-cols-2 gap-4">
+                            {player.id === currentSession.adminId && (
+                              <Badge variant="secondary" className="text-xs">
+                                <Icon name="Crown" size={12} className="mr-1" />
+                                Админ
+                              </Badge>
+                            )}
+                          </div>
+                          {currentSession.adminId === currentPlayerId && (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingPlayer(player)}>
+                                  <Icon name="Edit" size={16} />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                                <DialogHeader>
+                                  <DialogTitle>Редактировать карточку (Админ)</DialogTitle>
+                                </DialogHeader>
+                                {editingPlayer && (
+                                  <div className="grid gap-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <Label>Имя</Label>
+                                        <Input
+                                          value={editingPlayer.name}
+                                          onChange={(e) => setEditingPlayer({ ...editingPlayer, name: e.target.value })}
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label>Возраст</Label>
+                                        <Input
+                                          type="number"
+                                          value={editingPlayer.age}
+                                          onChange={(e) => setEditingPlayer({ ...editingPlayer, age: parseInt(e.target.value) })}
+                                        />
+                                      </div>
+                                    </div>
                                     <div>
-                                      <Label>Имя</Label>
+                                      <Label>Профессия</Label>
                                       <Input
-                                        value={editingPlayer.name}
-                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, name: e.target.value })}
+                                        value={editingPlayer.profession}
+                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, profession: e.target.value })}
                                       />
                                     </div>
                                     <div>
-                                      <Label>Возраст</Label>
+                                      <Label>Здоровье</Label>
                                       <Input
-                                        type="number"
-                                        value={editingPlayer.age}
-                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, age: parseInt(e.target.value) })}
+                                        value={editingPlayer.health}
+                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, health: e.target.value })}
                                       />
                                     </div>
+                                    <div>
+                                      <Label>Хобби</Label>
+                                      <Input
+                                        value={editingPlayer.hobby}
+                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, hobby: e.target.value })}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Фобия</Label>
+                                      <Input
+                                        value={editingPlayer.phobia}
+                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, phobia: e.target.value })}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Черта характера</Label>
+                                      <Input
+                                        value={editingPlayer.trait}
+                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, trait: e.target.value })}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Багаж</Label>
+                                      <Input
+                                        value={editingPlayer.baggage}
+                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, baggage: e.target.value })}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Доп. факт</Label>
+                                      <Textarea
+                                        value={editingPlayer.fact}
+                                        onChange={(e) => setEditingPlayer({ ...editingPlayer, fact: e.target.value })}
+                                      />
+                                    </div>
+                                    <Button onClick={() => updatePlayer(editingPlayer)} className="gap-2">
+                                      <Icon name="Save" size={18} />
+                                      Сохранить
+                                    </Button>
                                   </div>
-                                  <div>
-                                    <Label>Профессия</Label>
-                                    <Input
-                                      value={editingPlayer.profession}
-                                      onChange={(e) => setEditingPlayer({ ...editingPlayer, profession: e.target.value })}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label>Здоровье</Label>
-                                    <Input
-                                      value={editingPlayer.health}
-                                      onChange={(e) => setEditingPlayer({ ...editingPlayer, health: e.target.value })}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label>Хобби</Label>
-                                    <Input
-                                      value={editingPlayer.hobby}
-                                      onChange={(e) => setEditingPlayer({ ...editingPlayer, hobby: e.target.value })}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label>Фобия</Label>
-                                    <Input
-                                      value={editingPlayer.phobia}
-                                      onChange={(e) => setEditingPlayer({ ...editingPlayer, phobia: e.target.value })}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label>Черта характера</Label>
-                                    <Input
-                                      value={editingPlayer.trait}
-                                      onChange={(e) => setEditingPlayer({ ...editingPlayer, trait: e.target.value })}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label>Багаж</Label>
-                                    <Input
-                                      value={editingPlayer.baggage}
-                                      onChange={(e) => setEditingPlayer({ ...editingPlayer, baggage: e.target.value })}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label>Доп. факт</Label>
-                                    <Textarea
-                                      value={editingPlayer.fact}
-                                      onChange={(e) => setEditingPlayer({ ...editingPlayer, fact: e.target.value })}
-                                    />
-                                  </div>
-                                  <Button onClick={() => updatePlayer(editingPlayer)} className="gap-2">
-                                    <Icon name="Save" size={18} />
-                                    Сохранить
-                                  </Button>
-                                </div>
-                              )}
-                            </DialogContent>
-                          </Dialog>
+                                )}
+                              </DialogContent>
+                            </Dialog>
+                          )}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
                         <div className="space-y-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <Icon name="Briefcase" size={14} className="text-primary" />
-                            <span className="text-muted-foreground">Профессия:</span>
-                            <span className="font-medium">{player.profession}</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              <Icon name="Briefcase" size={14} className="text-primary" />
+                              <span className="text-muted-foreground">Профессия:</span>
+                              {player.revealed.profession ? (
+                                <span className="font-medium">{player.profession}</span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Скрыто</span>
+                              )}
+                            </div>
+                            {player.id === currentPlayerId && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReveal(player.id, 'profession')}
+                                className="h-6 px-2"
+                              >
+                                <Icon name={player.revealed.profession ? 'EyeOff' : 'Eye'} size={14} />
+                              </Button>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Icon name="Calendar" size={14} className="text-primary" />
-                            <span className="text-muted-foreground">Возраст:</span>
-                            <span className="font-medium">{player.age} лет</span>
+                          
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              <Icon name="Calendar" size={14} className="text-primary" />
+                              <span className="text-muted-foreground">Возраст:</span>
+                              {player.revealed.age ? (
+                                <span className="font-medium">{player.age} лет</span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Скрыто</span>
+                              )}
+                            </div>
+                            {player.id === currentPlayerId && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReveal(player.id, 'age')}
+                                className="h-6 px-2"
+                              >
+                                <Icon name={player.revealed.age ? 'EyeOff' : 'Eye'} size={14} />
+                              </Button>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Icon name="Heart" size={14} className="text-primary" />
-                            <span className="text-muted-foreground">Здоровье:</span>
-                            <span className="font-medium">{player.health}</span>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              <Icon name="Heart" size={14} className="text-primary" />
+                              <span className="text-muted-foreground">Здоровье:</span>
+                              {player.revealed.health ? (
+                                <span className="font-medium">{player.health}</span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Скрыто</span>
+                              )}
+                            </div>
+                            {player.id === currentPlayerId && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReveal(player.id, 'health')}
+                                className="h-6 px-2"
+                              >
+                                <Icon name={player.revealed.health ? 'EyeOff' : 'Eye'} size={14} />
+                              </Button>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Icon name="Sparkles" size={14} className="text-primary" />
-                            <span className="text-muted-foreground">Хобби:</span>
-                            <span className="font-medium">{player.hobby}</span>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              <Icon name="Sparkles" size={14} className="text-primary" />
+                              <span className="text-muted-foreground">Хобби:</span>
+                              {player.revealed.hobby ? (
+                                <span className="font-medium">{player.hobby}</span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Скрыто</span>
+                              )}
+                            </div>
+                            {player.id === currentPlayerId && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReveal(player.id, 'hobby')}
+                                className="h-6 px-2"
+                              >
+                                <Icon name={player.revealed.hobby ? 'EyeOff' : 'Eye'} size={14} />
+                              </Button>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Icon name="Skull" size={14} className="text-destructive" />
-                            <span className="text-muted-foreground">Фобия:</span>
-                            <span className="font-medium">{player.phobia}</span>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              <Icon name="Skull" size={14} className="text-destructive" />
+                              <span className="text-muted-foreground">Фобия:</span>
+                              {player.revealed.phobia ? (
+                                <span className="font-medium">{player.phobia}</span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Скрыто</span>
+                              )}
+                            </div>
+                            {player.id === currentPlayerId && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReveal(player.id, 'phobia')}
+                                className="h-6 px-2"
+                              >
+                                <Icon name={player.revealed.phobia ? 'EyeOff' : 'Eye'} size={14} />
+                              </Button>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Icon name="Award" size={14} className="text-primary" />
-                            <span className="text-muted-foreground">Черта:</span>
-                            <span className="font-medium">{player.trait}</span>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              <Icon name="Award" size={14} className="text-primary" />
+                              <span className="text-muted-foreground">Черта:</span>
+                              {player.revealed.trait ? (
+                                <span className="font-medium">{player.trait}</span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Скрыто</span>
+                              )}
+                            </div>
+                            {player.id === currentPlayerId && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReveal(player.id, 'trait')}
+                                className="h-6 px-2"
+                              >
+                                <Icon name={player.revealed.trait ? 'EyeOff' : 'Eye'} size={14} />
+                              </Button>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Icon name="Package" size={14} className="text-primary" />
-                            <span className="text-muted-foreground">Багаж:</span>
-                            <span className="font-medium">{player.baggage}</span>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              <Icon name="Package" size={14} className="text-primary" />
+                              <span className="text-muted-foreground">Багаж:</span>
+                              {player.revealed.baggage ? (
+                                <span className="font-medium">{player.baggage}</span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Скрыто</span>
+                              )}
+                            </div>
+                            {player.id === currentPlayerId && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReveal(player.id, 'baggage')}
+                                className="h-6 px-2"
+                              >
+                                <Icon name={player.revealed.baggage ? 'EyeOff' : 'Eye'} size={14} />
+                              </Button>
+                            )}
                           </div>
-                          <div className="flex items-start gap-2">
-                            <Icon name="Info" size={14} className="text-primary mt-0.5" />
-                            <span className="text-muted-foreground">Факт:</span>
-                            <span className="font-medium flex-1">{player.fact}</span>
+
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1">
+                              <Icon name="Info" size={14} className="text-primary mt-0.5" />
+                              <span className="text-muted-foreground">Факт:</span>
+                              {player.revealed.fact ? (
+                                <span className="font-medium flex-1">{player.fact}</span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Скрыто</span>
+                              )}
+                            </div>
+                            {player.id === currentPlayerId && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReveal(player.id, 'fact')}
+                                className="h-6 px-2"
+                              >
+                                <Icon name={player.revealed.fact ? 'EyeOff' : 'Eye'} size={14} />
+                              </Button>
+                            )}
                           </div>
                         </div>
                         {currentSession.status === 'voting' && (
